@@ -27,7 +27,7 @@ void main(){
 
 
     veyepos = model_view * vPosition; //move object to eye space
-    vN = normalize((model_view * vNormal).xyz);
+    vN = normalize((model_view * normalize(vNormal)).xyz);
 
     gl_Position = projection * veyepos;
 

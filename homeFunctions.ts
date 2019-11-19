@@ -21,7 +21,10 @@ let globePoints:vec4[];
 let canvas:HTMLCanvasElement;
 
 //translations
-let xAngle:number;
+let frame:number;
+
+let windowHeight:number;
+let windowWidth:number;
 
 
 window.onload = function init(){
@@ -38,8 +41,6 @@ window.onload = function init(){
     globeBufferId = gl.createBuffer();
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
-    gl.cullFace(gl.BACK);
-    gl.enable(gl.CULL_FACE);
 
 
     //Initialize uniforms
@@ -53,8 +54,10 @@ window.onload = function init(){
     let proj:mat4 = perspective(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000.0);
     gl.uniformMatrix4fv(uproj, false, proj.flatten());
 
-    generateSphere(15);
-    xAngle = 0;
+    generateSphere(360);
+    frame = 0;
+    windowHeight = 0;
+    windowWidth = 0;
 
 
     window.setInterval(update, 50);
@@ -62,7 +65,7 @@ window.onload = function init(){
 
 
 function update(){
-    xAngle++;
+    frame++;
     setLightValues();
     render();
 }
@@ -70,7 +73,7 @@ function update(){
 function setLightValues(){
     gl.uniform4fv(uLightColor, [1, 1, 1, 1]); //Light color
     gl.uniform4fv(uAmbient, [.25, .25, .25, 1]); //intensity
-    gl.uniform4fv(uLightPosition, [1, 1, 1, 0]); //Light Position
+
 }
 
 
@@ -104,9 +107,36 @@ function generateSphere(subdiv:number){
 
 }
 
-function render(){
-    let mv:mat4 = lookAt(new vec4(2,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
+function resize(){
+    let w = document.body.offsetWidth;
+    let h = document.documentElement.clientHeight - 25;
 
+    if(windowWidth != w || windowHeight != h) {
+        canvas.height = h;
+        canvas.width = w;
+
+        let proj: mat4 = perspective(60, canvas.width / canvas.height, 0.01, 1000.0);
+        gl.uniformMatrix4fv(uproj, false, proj.flatten());
+
+        gl.viewport(0,0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        windowWidth = w;
+        windowHeight = h;
+    }
+}
+
+function render2(){
+    resize();
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    let mv:mat4 = lookAt(new vec4(2.5,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
+
+    //Light
+
+    let cs = Math.cos(frame/10);
+    let sn = Math.sin(frame/10);
+    let lp = new vec4(cs - sn, 0, sn + cs, 0);
+
+    gl.uniform4fv(uLightPosition, lp); //Light Position
 
 
     gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
@@ -121,7 +151,42 @@ function render(){
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);
     gl.vertexAttrib1f(gl.getAttribLocation(program, "vSpecularExponent"), 50.0);
-    mv = mv.mult(rotateY(xAngle));
+    mv = mv.mult(rotateY(frame));
+    gl.uniformMatrix4fv(umv, false, mv.flatten());
+    gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
+}
+
+function render(){
+    resize();
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    let mv:mat4 = lookAt(new vec4(2.5,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
+
+    //Light
+
+    let sunRotOffset  = frame/25;
+    let sunDistance = 10;
+    let sunVertOffset = 5;
+
+    let cs = Math.cos(sunRotOffset);
+    let sn = Math.sin(sunRotOffset);
+    let lp = new vec4(sunDistance*cs - sunDistance*sn, sunVertOffset, sunDistance*sn + sunDistance*cs, 0);
+
+    gl.uniform4fv(uLightPosition, lp); //Light Position
+
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
+    let vPosition = gl.getAttribLocation(program, "vPosition");
+    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(vPosition);
+
+    let vNormal = gl.getAttribLocation(program, "vNormal");
+    gl.vertexAttribPointer(vNormal, 4, gl.FLOAT, false, 32, 16);
+    gl.enableVertexAttribArray(vNormal);
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);
+    gl.vertexAttrib1f(gl.getAttribLocation(program, "vSpecularExponent"), 75.0);
+    mv = mv.mult(rotateY(frame));
     gl.uniformMatrix4fv(umv, false, mv.flatten());
     gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
 }

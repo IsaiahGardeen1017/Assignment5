@@ -34,6 +34,6 @@ void main()
         spec = vec4(0,0,0,1); //no light on the back side, Blim-Phong Issue
     }
 
-    //fColor = amb + spec + diff;
-    fColor = vec4(N, 1);
+    fColor = amb + spec + diff;
+    //fColor = vec4(vN, 1);
 }

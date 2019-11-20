@@ -1,5 +1,16 @@
 "use strict";
-import {initFileShaders, vec4, mat4, perspective, flatten, lookAt, rotateX, scalem, rotateY} from "./helperfunctions.js";
+import {
+    initFileShaders,
+    vec4,
+    mat4,
+    perspective,
+    flatten,
+    lookAt,
+    rotateX,
+    scalem,
+    rotateY,
+    vec2
+} from "./helperfunctions.js";
 
 //Web GL stuff
 let gl:WebGLRenderingContext;
@@ -12,10 +23,15 @@ let uLightColor:WebGLUniformLocation;
 let uAmbient:WebGLUniformLocation;
 let uLightPosition:WebGLUniformLocation;
 
+//Texture Stuff
+let dayTexture:WebGLTexture;
+let vTexCoord:GLint;
+let uTextureSampler:WebGLUniformLocation;
+let earthDayImage:HTMLImageElement;
 
 //Globe
 let globeBufferId:WebGLBuffer;
-let globePoints:vec4[];
+let globePoints:any[];
 
 //document elements
 let canvas:HTMLCanvasElement;
@@ -42,27 +58,44 @@ window.onload = function init(){
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
 
-
     //Initialize uniforms
     uproj = gl.getUniformLocation(program, "projection");
     umv = gl.getUniformLocation(program, "model_view");
     uLightPosition = gl.getUniformLocation(program, "light_position");
     uAmbient = gl.getUniformLocation(program, "ambient_light");
     uLightColor = gl.getUniformLocation(program, "light_color");
+    uTextureSampler = gl.getUniformLocation(program, "textureSampler");
 
     //Sends over projection matrix
     let proj:mat4 = perspective(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000.0);
     gl.uniformMatrix4fv(uproj, false, proj.flatten());
 
-    generateSphere(360);
+    generateSphere(64);
     frame = 0;
     windowHeight = 0;
     windowWidth = 0;
 
-
     window.setInterval(update, 50);
 }
 
+function initTextures() {
+    dayTexture = gl.createTexture();
+    earthDayImage = new Image();
+    earthDayImage.onload = function() { handleTextureLoaded(earthDayImage, dayTexture); };
+    earthDayImage.src = 'GraphicsProgrammingImage.jpg';
+}
+
+function handleTextureLoaded(image:HTMLImageElement, texture:WebGLTexture) {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    let anisotropic_ext = gl.getExtension('EXT_texture_filter_anisotropic');
+    gl.texParameterf(gl.TEXTURE_2D, anisotropic_ext.TEXTURE_MAX_ANISOTROPY_EXT, 4);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
 
 function update(){
     frame++;
@@ -86,24 +119,46 @@ function generateSphere(subdiv:number){
             //triangle 1
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 1.0)); //position
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 0.0)); //normal
+            globePoints.push(new vec2(lat, lon));
+
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon+step), Math.sin(lat)*Math.sin(lon+step), Math.cos(lat), 1.0));
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon+step), Math.sin(lat)*Math.sin(lon+step), Math.cos(lat), 0.0));
+            globePoints.push(new vec2(lat, lon + step));
+
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 0.0));
+            globePoints.push(new vec2(lat + step, lon + step));
 
             //triangle 2
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 0.0));
+            globePoints.push(new vec2(lat + step, lon + step));
+
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon), Math.sin(lat+step)*Math.sin(lon), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon), Math.sin(lat+step)*Math.sin(lon), Math.cos(lat+step),0.0));
+            globePoints.push(new vec2(lat + step, lon));
+
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 1.0));
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 0.0));
+            globePoints.push(new vec2(lat, lon));
         }
     }
 
     globeBufferId = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(globePoints), gl.STATIC_DRAW);
+
+    let vPosition = gl.getAttribLocation(program, "vPosition");
+    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 40, 0);
+    gl.enableVertexAttribArray(vPosition);
+
+    let vNormal = gl.getAttribLocation(program, "vNormal");
+    gl.vertexAttribPointer(vNormal, 4, gl.FLOAT, false, 40, 16);
+    gl.enableVertexAttribArray(vNormal);
+
+    vTexCoord = gl.getAttribLocation(program, "texCoord");
+    gl.vertexAttribPointer(vTexCoord, 2, gl.FLOAT, false, 40, 32);
+    gl.enableVertexAttribArray(vTexCoord);
 
 }
 
@@ -139,14 +194,8 @@ function render2(){
     gl.uniform4fv(uLightPosition, lp); //Light Position
 
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
-    let vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 32, 0);
-    gl.enableVertexAttribArray(vPosition);
 
-    let vNormal = gl.getAttribLocation(program, "vNormal");
-    gl.vertexAttribPointer(vNormal, 4, gl.FLOAT, false, 32, 16);
-    gl.enableVertexAttribArray(vNormal);
+
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);

@@ -7,12 +7,14 @@ in vec4 fAmbientColor;
 in vec4 fDiffuseColor;
 in vec4 fSpecularColor;
 in float fSpecularExponent;
+in vec2 fTexCoord;
 
 out vec4  fColor;
 
 uniform vec4 light_color;
-uniform vec4 ambient_light;//intensity
+uniform vec4 ambient_light;
 uniform vec4 light_position;
+uniform sampler2D textureSampler;
 
 void main()
 {
@@ -34,6 +36,6 @@ void main()
         spec = vec4(0,0,0,1); //no light on the back side, Blim-Phong Issue
     }
 
-    fColor = amb + spec + diff;
+    fColor = texture(textureSampler, fTexCoord);// + amb + spec + diff;
     //fColor = vec4(vN, 1);
 }

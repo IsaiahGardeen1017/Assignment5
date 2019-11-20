@@ -2,12 +2,13 @@
 
 in vec4 vPosition;
 in vec4 vNormal;
-
+in vec2 texCoord;
 
 in vec4 vDiffuseColor; //material color
 in vec4 vAmbientColor; //material color
 in vec4 vSpecularColor;
 in float vSpecularExponent;
+
 
 
 //In and Outs
@@ -17,6 +18,7 @@ out vec4 fSpecularColor;
 out float fSpecularExponent;
 out vec4 veyepos;
 out vec3 vN;
+out vec2 fTexCoord;
 
 uniform mat4 model_view;
 uniform mat4 projection;

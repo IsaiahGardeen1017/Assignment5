@@ -70,6 +70,7 @@ window.onload = function init(){
     let proj:mat4 = perspective(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000.0);
     gl.uniformMatrix4fv(uproj, false, proj.flatten());
 
+    initTextures();
     generateSphere(64);
     frame = 0;
     windowHeight = 0;
@@ -82,7 +83,7 @@ function initTextures() {
     dayTexture = gl.createTexture();
     earthDayImage = new Image();
     earthDayImage.onload = function() { handleTextureLoaded(earthDayImage, dayTexture); };
-    earthDayImage.src = 'GraphicsProgrammingImage.jpg';
+    earthDayImage.src = 'Earth.png';
 }
 
 function handleTextureLoaded(image:HTMLImageElement, texture:WebGLTexture) {
@@ -114,8 +115,14 @@ function generateSphere(subdiv:number){
     let step:number = (360.0 / subdiv)*(Math.PI / 180.0);
     globePoints = [];
 
+
     for (let lat:number = 0; lat <= Math.PI ; lat += step){ //latitude
         for (let lon:number = 0; lon + step <= 2*Math.PI; lon += step){ //longitude
+            let slat = lat/Math.PI;
+            let slon = lon/(2 * Math.PI);
+
+            
+
             //triangle 1
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 1.0)); //position
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 0.0)); //normal
@@ -194,8 +201,6 @@ function render2(){
     gl.uniform4fv(uLightPosition, lp); //Light Position
 
 
-
-
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);
@@ -211,7 +216,6 @@ function render(){
     let mv:mat4 = lookAt(new vec4(2.5,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
 
     //Light
-
     let sunRotOffset  = frame/25;
     let sunDistance = 10;
     let sunVertOffset = 5;
@@ -222,15 +226,8 @@ function render(){
 
     gl.uniform4fv(uLightPosition, lp); //Light Position
 
+    //gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
-    let vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 32, 0);
-    gl.enableVertexAttribArray(vPosition);
-
-    let vNormal = gl.getAttribLocation(program, "vNormal");
-    gl.vertexAttribPointer(vNormal, 4, gl.FLOAT, false, 32, 16);
-    gl.enableVertexAttribArray(vNormal);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
     gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);

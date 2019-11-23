@@ -36,6 +36,8 @@ void main()
         spec = vec4(0,0,0,1); //no light on the back side, Blim-Phong Issue
     }
 
-    fColor = texture(textureSampler, fTexCoord);// + amb + spec + diff;
+    //fColor = texture(textureSampler, fTexCoord);// + amb + spec + diff;
+    vec4 tex = texture(textureSampler, fTexCoord);
+    fColor = amb + spec + diff;
     //fColor = vec4(vN, 1);
 }

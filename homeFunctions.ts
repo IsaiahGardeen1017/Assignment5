@@ -9,7 +9,7 @@ import {
     rotateX,
     scalem,
     rotateY,
-    vec2
+    vec2, rotateZ
 } from "./helperfunctions.js";
 
 //Web GL stuff
@@ -22,12 +22,26 @@ let uproj:WebGLUniformLocation;
 let uLightColor:WebGLUniformLocation;
 let uAmbient:WebGLUniformLocation;
 let uLightPosition:WebGLUniformLocation;
+let functionIndex:WebGLUniformLocation;
 
-//Texture Stuff
-let dayTexture:WebGLTexture;
 let vTexCoord:GLint;
-let uTextureSampler:WebGLUniformLocation;
+//TODO Texture Stuff
+let dayTextureSampler:WebGLUniformLocation;
 let earthDayImage:HTMLImageElement;
+let dayTexture:WebGLTexture;
+
+let nightTextureSampler:WebGLUniformLocation;
+let earthNightImage:HTMLImageElement;
+let nightTexture:WebGLTexture;
+
+let specularTextureSampler:WebGLUniformLocation;
+let earthSpecularImage:HTMLImageElement;
+let specularTexture:WebGLTexture;
+
+let cloudTextureSampler:WebGLUniformLocation;
+let earthCloudImage:HTMLImageElement;
+let cloudTexture:WebGLTexture;
+
 
 //Globe
 let globeBufferId:WebGLBuffer;
@@ -50,6 +64,11 @@ window.onload = function init(){
         alert("WebGL isn't available");
     }
 
+    //Mousemovement
+    canvas.addEventListener("mousedown", mouse_down);
+    canvas.addEventListener("mousemove", mouse_drag);
+    canvas.addEventListener("mouseup", mouse_up);
+
     //Setup program
     program = initFileShaders(gl,"./vshader-basic.glsl","./fshader-basic.glsl");
     gl.useProgram(program);
@@ -57,6 +76,8 @@ window.onload = function init(){
     globeBufferId = gl.createBuffer();
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     //Initialize uniforms
     uproj = gl.getUniformLocation(program, "projection");
@@ -64,31 +85,52 @@ window.onload = function init(){
     uLightPosition = gl.getUniformLocation(program, "light_position");
     uAmbient = gl.getUniformLocation(program, "ambient_light");
     uLightColor = gl.getUniformLocation(program, "light_color");
-    uTextureSampler = gl.getUniformLocation(program, "textureSampler");
+    functionIndex = gl.getUniformLocation(program, "function");
+
 
     //Sends over projection matrix
     let proj:mat4 = perspective(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000.0);
     gl.uniformMatrix4fv(uproj, false, proj.flatten());
 
     initTextures();
-    generateSphere(64);
+    generateSphere(128);
     frame = 0;
     windowHeight = 0;
     windowWidth = 0;
 
-    window.setInterval(update, 50);
+    window.setInterval(update, 16);
 }
 
 function initTextures() {
+    //TODO STUFF FOR NEW TEXTURES
+    dayTextureSampler = gl.getUniformLocation(program, "dayTextureSampler");
     dayTexture = gl.createTexture();
     earthDayImage = new Image();
     earthDayImage.onload = function() { handleTextureLoaded(earthDayImage, dayTexture); };
     earthDayImage.src = 'Earth.png';
+
+    nightTextureSampler = gl.getUniformLocation(program, "nightTextureSampler");
+    nightTexture = gl.createTexture();
+    earthNightImage = new Image();
+    earthNightImage.onload = function() { handleTextureLoaded(earthNightImage, nightTexture); };
+    earthNightImage.src = 'EarthNight.png';
+
+    specularTextureSampler = gl.getUniformLocation(program, "specularTextureSampler");
+    specularTexture = gl.createTexture();
+    earthSpecularImage = new Image();
+    earthSpecularImage.onload = function() { handleTextureLoaded(earthSpecularImage, specularTexture); };
+    earthSpecularImage.src = 'EarthSpec.png';
+
+    cloudTextureSampler = gl.getUniformLocation(program, "cloudTextureSampler");
+    cloudTexture = gl.createTexture();
+    earthCloudImage = new Image();
+    earthCloudImage.onload = function() { handleTextureLoaded(earthCloudImage, cloudTexture); };
+    earthCloudImage.src = 'earthcloudmap-visness.png';
 }
 
 function handleTextureLoaded(image:HTMLImageElement, texture:WebGLTexture) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -106,8 +148,11 @@ function update(){
 
 function setLightValues(){
     gl.uniform4fv(uLightColor, [1, 1, 1, 1]); //Light color
-    gl.uniform4fv(uAmbient, [.25, .25, .25, 1]); //intensity
-
+    gl.uniform4fv(uAmbient, [.01, .01, .01, 1]); //intensity
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [1.0, 1.0, 1.0, 1.0]);
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [1.0, 1.0, 1.0, 1.0]);
+    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [0.8, 0.8, 0.8, 1.0]);
+    gl.vertexAttrib1f(gl.getAttribLocation(program, "vSpecularExponent"), 25.0);
 }
 
 
@@ -118,36 +163,40 @@ function generateSphere(subdiv:number){
 
     for (let lat:number = 0; lat <= Math.PI ; lat += step){ //latitude
         for (let lon:number = 0; lon + step <= 2*Math.PI; lon += step){ //longitude
-            let slat = lat/Math.PI;
-            let slon = lon/(2 * Math.PI);
+            let nlat = lat/Math.PI;
+            let nlon = lon/(2 * Math.PI);
+            let slat = (lat + step)/Math.PI;
+            let slon = (lon + step)/(2 * Math.PI);
 
             
 
             //triangle 1
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 1.0)); //position
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 0.0)); //normal
-            globePoints.push(new vec2(lat, lon));
+            globePoints.push(new vec2(nlon, nlat));
 
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon+step), Math.sin(lat)*Math.sin(lon+step), Math.cos(lat), 1.0));
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon+step), Math.sin(lat)*Math.sin(lon+step), Math.cos(lat), 0.0));
-            globePoints.push(new vec2(lat, lon + step));
+            //globePoints.push(new vec2(nlon, slat));
+            globePoints.push(new vec2(slon, nlat));
 
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 0.0));
-            globePoints.push(new vec2(lat + step, lon + step));
+            globePoints.push(new vec2(slon, slat));
 
             //triangle 2
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon+step), Math.sin(lon+step)*Math.sin(lat+step), Math.cos(lat+step), 0.0));
-            globePoints.push(new vec2(lat + step, lon + step));
+            globePoints.push(new vec2(slon, slat));
 
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon), Math.sin(lat+step)*Math.sin(lon), Math.cos(lat+step), 1.0));
             globePoints.push(new vec4(Math.sin(lat+step)*Math.cos(lon), Math.sin(lat+step)*Math.sin(lon), Math.cos(lat+step),0.0));
-            globePoints.push(new vec2(lat + step, lon));
+            //globePoints.push(new vec2(slon, nlat));
+            globePoints.push(new vec2(nlon, slat));
 
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 1.0));
             globePoints.push(new vec4(Math.sin(lat)*Math.cos(lon), Math.sin(lon)*Math.sin(lat), Math.cos(lat), 0.0));
-            globePoints.push(new vec2(lat, lon));
+            globePoints.push(new vec2(nlon, nlat));
         }
     }
 
@@ -187,52 +236,107 @@ function resize(){
     }
 }
 
-function render2(){
-    resize();
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    let mv:mat4 = lookAt(new vec4(2.5,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
 
-    //Light
-
-    let cs = Math.cos(frame/10);
-    let sn = Math.sin(frame/10);
-    let lp = new vec4(cs - sn, 0, sn + cs, 0);
-
-    gl.uniform4fv(uLightPosition, lp); //Light Position
-
-
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);
-    gl.vertexAttrib1f(gl.getAttribLocation(program, "vSpecularExponent"), 50.0);
-    mv = mv.mult(rotateY(frame));
-    gl.uniformMatrix4fv(umv, false, mv.flatten());
-    gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
-}
 
 function render(){
     resize();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    let mv:mat4 = lookAt(new vec4(2.5,0,0,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
+    let mv:mat4 = lookAt(new vec4(0,0,2.05,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
 
-    //Light
-    let sunRotOffset  = frame/25;
+    let simulationSpeed = 0.1;
+    let cloudSpeed = 0.25;
     let sunDistance = 10;
     let sunVertOffset = 5;
 
+
+    //TODO Needed for every new texture
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, dayTexture);
+    gl.uniform1i(dayTextureSampler, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, nightTexture);
+    gl.uniform1i(nightTextureSampler, 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, specularTexture);
+    gl.uniform1i(specularTextureSampler, 2);
+
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, cloudTexture);
+    gl.uniform1i(cloudTextureSampler, 3);
+
+
+
+    let rotOffset = frame * simulationSpeed;
+    let sunRotOffset = rotOffset / 500;
     let cs = Math.cos(sunRotOffset);
     let sn = Math.sin(sunRotOffset);
     let lp = new vec4(sunDistance*cs - sunDistance*sn, sunVertOffset, sunDistance*sn + sunDistance*cs, 0);
 
-    gl.uniform4fv(uLightPosition, lp); //Light Position
+    //Earth + sun transformations
+    mv = mv.mult(rotateX(xAngle));
+    mv = mv.mult(rotateY(yAngle));
 
-    //gl.bindBuffer(gl.ARRAY_BUFFER, globeBufferId);
+    //Light Position
+    lp = mv.mult(lp);
+    gl.uniform4fv(uLightPosition, lp);
 
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vAmbientColor"), [0.5, 0.0, 0.0, 1.0]);
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vDiffuseColor"), [0.3, 0.1, 0.1, 1.0]);
-    gl.vertexAttrib4fv(gl.getAttribLocation(program, "vSpecularColor"), [1.0, 1.0, 1.0, 1.0]);
-    gl.vertexAttrib1f(gl.getAttribLocation(program, "vSpecularExponent"), 75.0);
-    mv = mv.mult(rotateY(frame));
+    //Earth only transformations
+    mv = mv.mult(rotateY(rotOffset));
+    mv = mv.mult(rotateX(-90));
+
+    gl.uniform1f(functionIndex, 0.0);
     gl.uniformMatrix4fv(umv, false, mv.flatten());
     gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
+
+
+    //Clouds
+    let scaler = 1.001;
+    let cloudOffset = rotOffset * cloudSpeed;
+    mv = mv.mult(scalem(scaler, scaler, scaler));
+    mv = mv.mult(rotateZ(cloudOffset));
+    mv = mv.mult(rotateY(cloudOffset/2));
+
+    gl.uniform1f(functionIndex, 3.0);
+    gl.uniformMatrix4fv(umv, false, mv.flatten());
+    gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
+
+
+}
+
+
+
+
+let mouse_button_down:boolean = false;
+let xAngle = 0;
+let yAngle = 0;
+let prevMouseX = 0;
+let prevMouseY = 0;
+//TODO update rotation angles based on mouse movement
+function mouse_drag(event:MouseEvent){
+    let thetaY:number, thetaX:number;
+    if (mouse_button_down) {
+        thetaY = 360.0 *(event.clientX-prevMouseX)/canvas.clientWidth;
+        thetaX = 360.0 *(event.clientY-prevMouseY)/canvas.clientHeight;
+        prevMouseX = event.clientX;
+        prevMouseY = event.clientY;
+        xAngle += thetaX;
+        yAngle += thetaY;
+
+    }
+    requestAnimationFrame(render);
+}
+//record that the mouse button is now down
+function mouse_down(event:MouseEvent) {
+    //establish point of reference for dragging mouse in window
+    mouse_button_down = true;
+    prevMouseX= event.clientX;
+    prevMouseY = event.clientY;
+    requestAnimationFrame(render);
+}
+//record that the mouse button is now up, so don't respond to mouse movements
+function mouse_up(){
+    mouse_button_down = false;
+    requestAnimationFrame(render);
 }

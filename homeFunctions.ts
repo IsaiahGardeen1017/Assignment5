@@ -43,6 +43,15 @@ let earthCloudImage:HTMLImageElement;
 let cloudTexture:WebGLTexture;
 
 
+//UI values
+let clouds:boolean = true;
+const ALLFEATURES = 0.0;
+const SPECULAR = 1.0;
+const SURFACETEXTURES = 2.0;
+let funcIndexValue:number = ALLFEATURES;
+
+
+
 //Globe
 let globeBufferId:WebGLBuffer;
 let globePoints:any[];
@@ -55,6 +64,7 @@ let frame:number;
 
 let windowHeight:number;
 let windowWidth:number;
+let zoom:number = 2.05;
 
 
 window.onload = function init(){
@@ -79,6 +89,7 @@ window.onload = function init(){
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+
     //Initialize uniforms
     uproj = gl.getUniformLocation(program, "projection");
     umv = gl.getUniformLocation(program, "model_view");
@@ -98,7 +109,12 @@ window.onload = function init(){
     windowHeight = 0;
     windowWidth = 0;
 
-    window.setInterval(update, 16);
+
+    window.addEventListener("keydown", function(event){
+        keydownEvent(event.key);
+    });
+
+    window.setInterval(update, 32);
 }
 
 function initTextures() {
@@ -107,13 +123,14 @@ function initTextures() {
     dayTexture = gl.createTexture();
     earthDayImage = new Image();
     earthDayImage.onload = function() { handleTextureLoaded(earthDayImage, dayTexture); };
-    earthDayImage.src = 'Earth.png';
+    earthDayImage.src = 'eu4.jpg';
 
     nightTextureSampler = gl.getUniformLocation(program, "nightTextureSampler");
     nightTexture = gl.createTexture();
     earthNightImage = new Image();
     earthNightImage.onload = function() { handleTextureLoaded(earthNightImage, nightTexture); };
     earthNightImage.src = 'EarthNight.png';
+
 
     specularTextureSampler = gl.getUniformLocation(program, "specularTextureSampler");
     specularTexture = gl.createTexture();
@@ -125,12 +142,13 @@ function initTextures() {
     cloudTexture = gl.createTexture();
     earthCloudImage = new Image();
     earthCloudImage.onload = function() { handleTextureLoaded(earthCloudImage, cloudTexture); };
+    //earthCloudImage.src = 'starfield-1.jpg';
     earthCloudImage.src = 'earthcloudmap-visness.png';
+    //earthCloudImage.src = 'opengl.png';
 }
 
 function handleTextureLoaded(image:HTMLImageElement, texture:WebGLTexture) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -241,9 +259,9 @@ function resize(){
 function render(){
     resize();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    let mv:mat4 = lookAt(new vec4(0,0,2.05,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
+    let mv:mat4 = lookAt(new vec4(0,0,zoom,0), new vec4(0,0,0,0), new vec4(0,1,0,0));
 
-    let simulationSpeed = 0.1;
+    let simulationSpeed = 0.05;
     let cloudSpeed = 0.25;
     let sunDistance = 10;
     let sunVertOffset = 5;
@@ -272,6 +290,8 @@ function render(){
     let sunRotOffset = rotOffset / 500;
     let cs = Math.cos(sunRotOffset);
     let sn = Math.sin(sunRotOffset);
+
+
     let lp = new vec4(sunDistance*cs - sunDistance*sn, sunVertOffset, sunDistance*sn + sunDistance*cs, 0);
 
     //Earth + sun transformations
@@ -286,34 +306,36 @@ function render(){
     mv = mv.mult(rotateY(rotOffset));
     mv = mv.mult(rotateX(-90));
 
-    gl.uniform1f(functionIndex, 0.0);
+    gl.uniform1f(functionIndex, funcIndexValue);
     gl.uniformMatrix4fv(umv, false, mv.flatten());
     gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
 
 
-    //Clouds
-    let scaler = 1.001;
-    let cloudOffset = rotOffset * cloudSpeed;
-    mv = mv.mult(scalem(scaler, scaler, scaler));
-    mv = mv.mult(rotateZ(cloudOffset));
-    mv = mv.mult(rotateY(cloudOffset/2));
+    if(clouds) {
+        //Clouds
+        let scaler = 1.01;
+        let cloudOffset = rotOffset * cloudSpeed;
+        mv = mv.mult(scalem(scaler, scaler, scaler));
+        mv = mv.mult(rotateZ(cloudOffset));
+        mv = mv.mult(rotateY(cloudOffset / 2));
 
-    gl.uniform1f(functionIndex, 3.0);
-    gl.uniformMatrix4fv(umv, false, mv.flatten());
-    gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
+        gl.uniform1f(functionIndex, 3.0);
+        gl.uniformMatrix4fv(umv, false, mv.flatten());
+        gl.drawArrays(gl.TRIANGLES, 0, globePoints.length);
+    }
+
 
 
 }
 
 
 
-
+//I/O
 let mouse_button_down:boolean = false;
 let xAngle = 0;
 let yAngle = 0;
 let prevMouseX = 0;
 let prevMouseY = 0;
-//TODO update rotation angles based on mouse movement
 function mouse_drag(event:MouseEvent){
     let thetaY:number, thetaX:number;
     if (mouse_button_down) {
@@ -323,7 +345,6 @@ function mouse_drag(event:MouseEvent){
         prevMouseY = event.clientY;
         xAngle += thetaX;
         yAngle += thetaY;
-
     }
     requestAnimationFrame(render);
 }
@@ -339,4 +360,22 @@ function mouse_down(event:MouseEvent) {
 function mouse_up(){
     mouse_button_down = false;
     requestAnimationFrame(render);
+}
+
+
+function keydownEvent(key:string){
+    switch(key) {
+        case" ":
+            funcIndexValue = (funcIndexValue + 1) % 3;
+            break;
+        case"c":
+            clouds = !clouds;
+            break;
+        case"ArrowUp":
+            zoom -= 0.05;
+            break;
+        case"ArrowDown":
+            zoom += 0.05;
+            break;
+    }
 }

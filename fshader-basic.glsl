@@ -85,7 +85,7 @@ void specularOnly(){
     fColor = spec;
 }
 
-void clouds(){
+void decentClouds(){
     vec3 N = normalize(vN);
     vec3 V = normalize(-veyepos.xyz);
     vec3 L = normalize(light_position.xyz - veyepos.xyz);
@@ -100,7 +100,28 @@ void clouds(){
     vec4 spec = pow(max(0.0, dot(N, H)), fSpecularExponent) * texture(cloudTextureSampler, fTexCoord) * light_color;
 
 
-    fColor = diff + spec;
+    fColor = diff;
+}
+
+void clouds(){
+    vec3 N = normalize(vN);
+    vec3 V = normalize(-veyepos.xyz);
+    vec3 L = normalize(light_position.xyz - veyepos.xyz);
+    vec3 H = normalize(L + V);
+
+    vec4 cloudTex = texture(cloudTextureSampler, fTexCoord);
+
+    vec4 diff = max(0.0, dot(L, N)) * fDiffuseColor * light_color;
+
+    fColor.x = 0.0;//diff.x * cloudTex.x;
+    fColor.y = 0.0;//diff.y * cloudTex.y;
+    fColor.z = 0.0;//diff.z * cloudTex.z;
+    fColor.w = cloudTex.w;
+
+    //fColor = cloudTex;
+
+    //diff.w = 1.0;
+    //fColor = diff;
 }
 
 void main()
@@ -112,6 +133,6 @@ void main()
     }else if(function == 2.0){//Surface Textures Only
         surfaceTexturesOnly();
     }else if(function == 3.0){//Clouds
-        clouds();
+        decentClouds();
     }
 }

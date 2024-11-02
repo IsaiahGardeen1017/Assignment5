@@ -1,0 +1,17 @@
+{
+  "name": "assignment5",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "t": "tsc && tscp",
+    "go": "node index"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.1",
+    "typescript": "^5.6.3",
+    "typescript-cp": "^0.1.9"
+  }
+}

@@ -123,7 +123,7 @@ function initTextures() {
     dayTexture = gl.createTexture();
     earthDayImage = new Image();
     earthDayImage.onload = function() { handleTextureLoaded(earthDayImage, dayTexture); };
-    earthDayImage.src = 'eu4.jpg';
+    earthDayImage.src = 'Earth.png';
 
     nightTextureSampler = gl.getUniformLocation(program, "nightTextureSampler");
     nightTexture = gl.createTexture();
